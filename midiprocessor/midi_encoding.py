@@ -52,8 +52,10 @@ class MidiEncoder(object):
         max_pos = 0
         for inst in midi_obj.instruments:
             for note in inst.notes:
+                # 将 ticks 位置转换成 resolution 的位置，仅仅是一个转换
                 pos = self.time_to_pos(note.start, midi_obj.ticks_per_beat)
                 max_pos = max(max_pos, pos)
+        # 找整个 MIDI 中最大的 pos
         max_pos = max_pos + 1  # 最大global position
         if trunc_pos is not None:
             max_pos = min(max_pos, trunc_pos)
@@ -81,11 +83,15 @@ class MidiEncoder(object):
             ts_denominator = int(ts_change.denominator)
             # if self.ignore_ts:
             #     assert (ts_numerator, ts_denominator) == const.DEFAULT_TS
+
+            # 简化时间签名，比如 6 / 8 拍就简化为 3 / 4 拍
             ts_numerator, ts_denominator = self.vm.reduce_time_signature(ts_numerator, ts_denominator)
             pos_info[pos][1] = (ts_numerator, ts_denominator)
         if not zero_pos_ts_change:
             pos_info[0][1] = const.DEFAULT_TS
+        # pos_info[any][1] 表示节拍 (3, 4) 表示该位置是 3 / 4 拍
 
+        # tempo_changes 表示速度变化时间
         tempo_changes = midi_obj.tempo_changes
         zero_pos_tempo_change = False
         for tempo_change in tempo_changes:
@@ -97,6 +103,7 @@ class MidiEncoder(object):
             pos_info[pos][3] = tempo_change.tempo
         if not zero_pos_tempo_change:
             pos_info[0][3] = const.DEFAULT_TEMPO
+        # pos_info[any][3] 表示音乐的速度
 
         insts = midi_obj.instruments
         for inst_idx, inst in enumerate(insts):
@@ -126,6 +133,7 @@ class MidiEncoder(object):
                     if note_info in pos_info[pos_start][4][inst_id]:
                         continue
                 pos_info[pos_start][4][inst_id].append([pitch, duration, velocity])
+        # pos_info[pos_start][4] 存储了多个音轨的音符信息
 
         cnt = 0
         bar = 0
@@ -145,6 +153,8 @@ class MidiEncoder(object):
                 assert cnt == measure_length, 'invalid time signature change: pos = {}'.format(j)
                 cnt = 0
                 bar += 1
+        # cnt 和 bar 的处理逻辑是用于计算每个时间位置所属的小节和在小节中的位置。
+        # 对应 pos_info[Any][0] -> bar  pos_info[Any][2] -> cnt
 
         return pos_info
 
@@ -257,8 +267,10 @@ class MidiEncoder(object):
         pos_info = self.collect_pos_info(midi_obj, trunc_pos=trunc_pos, tracks=tracks, end_offset=end_offset)
 
         if normalize_pitch_value:
+            # 猜调式，然后转 C-major
             pos_info, is_major, pitch_shift = self.normalize_pitch(pos_info)
 
+        # 将 pos_info 中的信息转换成 id，通过 vocab_manager 中的各种规则
         pos_info_id = self.convert_pos_info_to_pos_info_id(pos_info)
         if save_pos_info_id_path is not None:
             data_utils.json_save(pos_info_id, save_pos_info_id_path)
@@ -283,6 +295,7 @@ class MidiEncoder(object):
                 pos_info_id,
                 **kwargs
             )
+            pass
         elif encoding_method == 'STACKED':
             raise NotImplementedError
             # from . import enc_stacked_utils

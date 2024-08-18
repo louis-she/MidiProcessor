@@ -65,25 +65,42 @@ def main():
     num_processed = 0
     num_error = 0
 
-    with multiprocessing.Pool(processes=num_workers) as pool:
-        iterator = iter(
-            tqdm(
-                pool.imap(
-                    partial(
-                        process_file, encoder, args=args, track_dict=None, skip_error=True, save=True
-                    ),
-                    file_path_list,
-                ),
-                total=num_files
-            )
+    # with multiprocessing.Pool(processes=num_workers) as pool:
+    #     iterator = iter(
+    #         tqdm(
+    #             pool.imap(
+    #                 partial(
+    #                     process_file, encoder, args=args, track_dict=None, skip_error=True, save=True
+    #                 ),
+    #                 file_path_list,
+    #             ),
+    #             total=num_files
+    #         )
+    #     )
+    #     for i in range(num_files):
+    #         encodings = next(iterator)
+    #         num_processed += 1
+    #         if encodings is None:
+    #             num_error += 1
+    #             if not skip_error:
+    #                 sys.exit(1)
+
+    iterator = iter(
+        tqdm(
+            (partial(process_file, encoder, args=args, track_dict=None, skip_error=True, save=True)(file_path)
+            for file_path in file_path_list),
+            total=num_files
         )
-        for i in range(num_files):
-            encodings = next(iterator)
-            num_processed += 1
-            if encodings is None:
-                num_error += 1
-                if not skip_error:
-                    sys.exit(1)
+    )
+
+    for i in range(num_files):
+        encodings = next(iterator)
+        num_processed += 1
+        if encodings is None:
+            num_error += 1
+            if not skip_error:
+                sys.exit(1)
+
 
     print('Done.')
     print('Altogether %d files. Processed %d files. %d succeeded. %d failed.' % (
